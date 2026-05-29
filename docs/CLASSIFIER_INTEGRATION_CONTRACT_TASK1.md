@@ -186,18 +186,25 @@ Results accumulate across submissions in the same session (new results append, o
 6. **Duplicate submission** → any paper submitted twice returns `verdict = "duplicate"` on the second submission; no new DB row is created.
 7. **Multi-submission session** → submitting 3 papers in one page session shows 3 result cards without any being overwritten.
 8. **Classifier confidence** → `article_type_confidence` is always between 0.0 and 1.0.
-9. **Results persist on refresh** — results section is reset on page load (not persisted across page refreshes; session-only).
+9. **Results are session-only** — the results section accumulates cards within a page session but is reset on page load; it is intentionally NOT persisted across page refreshes.
 
 ---
 
 ## 5. Test Checklist
 
-- [ ] On-topic empirical PDF → `accept`, PDF saved at quarantine path, DB row exists
-- [ ] Off-topic PDF → `reject`, NO file in `data/storage/`, NO DB row
-- [ ] Edge-case PDF (theory/review) → `edge_case`, DB row has `validation_notes` with `edge_case:true`
-- [ ] Citation-only → endpoint handles, returns verdict, DB row for accept/edge_case
-- [ ] Same PDF submitted twice → second call returns `duplicate`, no duplicate row
-- [ ] Bad/non-PDF file → `rejected_bad_file`, no storage
-- [ ] Multiple submissions in one session → all result cards visible simultaneously
-- [ ] `article_type_confidence` in [0, 1] for every response
-- [ ] `article_id` is absent from response for reject/duplicate/bad-file verdicts
+All boxes below are checked because a corresponding assertion in
+`data/test_pdfs/validate_task1.py` passes (test id in parentheses). Run it to
+reproduce: `python3 data/test_pdfs/validate_task1.py` → `37/37 checks passed`.
+
+- [x] On-topic empirical PDF → `accept`, PDF saved at quarantine path, DB row exists (B1)
+- [x] Off-topic PDF → `reject`, NO file in `data/storage/`, NO DB row (B2)
+- [x] Edge-case PDF (theory/review) → `edge_case`, DB row has `validation_notes` with `edge_case:true` (B3)
+- [x] Citation-only → endpoint handles, returns verdict, DB row for accept/edge_case (B4)
+- [x] Same PDF submitted twice → second call returns `duplicate`, no duplicate row (B5)
+- [x] Bad/non-PDF file → `rejected_bad_file`, no storage (B7)
+- [x] Multiple submissions in one session → all result cards visible simultaneously (B6)
+- [x] `article_type_confidence` in [0, 1] for every response (CL)
+- [x] `article_id` is absent for reject/bad-file; **duplicate** intentionally returns the matched *existing* `article_id` as a pointer ("already in corpus: …") and inserts no new row (CL, B5)
+- [x] Missing-abstract submission → `needs_more_info`, NO DB row (B9, deterministic)
+- [x] `accept` with confidence < 0.55 demoted to `edge_case` (2A, §6)
+- [x] DB `status` column for stored rows is only `staged_pending_review` (2C)
