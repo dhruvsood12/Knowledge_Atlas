@@ -139,6 +139,18 @@ JSON response per submission item:
 }
 ```
 
+**Status semantics — response status vs DB status (read carefully).**
+The `status` field above is the **response** status. It is NOT a column domain.
+Only `accept` / `edge_case` verdicts are stored, and a stored row's
+`articles.status` column is **always** `staged_pending_review`. The other two
+response values describe submissions that are intentionally **not** stored:
+- `needs_more_info` → no row written (abstract/keywords required first);
+- `rejected_not_stored` → no row written (reject / duplicate / bad file).
+
+So querying the DB for a `needs_more_info` row correctly returns nothing — those
+states live only in the API response, by design. `data/test_pdfs/validate_task1.py`
+asserts this DB-status domain (every stored row is `staged_pending_review`).
+
 ---
 
 ## 3. Outputs
