@@ -14,8 +14,49 @@
 | DB connection | injected `_get_db()` (auth-context) | separate `_suggest_db()` opening `KA_WORKFLOW_DB` (env-overridable) | The `/suggest` endpoint is public/anonymous; `_get_db()` requires an auth context. `_suggest_db()` enables `WAL` + `busy_timeout=5000` + `foreign_keys=ON` for the same hygiene. |
 | Question constitutions | full catalogue | only `SQ-ART-001 Nature & Attention` ships with `atlas_shared` in `question_constitutions_starter.json` | Data limitation; not a code limitation. Adding more constitutions changes verdicts without touching the endpoint. |
 | `article_id` minting | `_next_id()` (the rest of the file) | `_suggest_next_id()` — `KA-ART-<8 hex>` via `secrets.token_hex(4).upper()` with uniqueness check + retry | Original `COUNT(*)+1` pattern races under concurrent submissions. Random-token-with-check eliminates the race without requiring a `SEQUENCE` table. |
+| **Article Eater dedup probe** | `probe_pdf_against_article_eater(...)` in `ae_waiting_room_probe.py`, or the shell form `python3 /Users/davidusa/REPOS/Article_Eater_PostQuinean_v1_recovery/scripts/course_scaffolding.py probe-collection-pdf --pdf-path <abs>` (rubric `t2_task1.html:184–194`) | local `_check_duplicate()` in `ka_article_endpoints.py` — SHA-256 + DOI + fuzzy-title probe against the local `articles` table | The instructor's `course_scaffolding.py` lives at an absolute path on the instructor VM (`/Users/davidusa/REPOS/Article_Eater_PostQuinean_v1_recovery/...`) that is **not present on this checkout**. `_check_duplicate()` honors the same contract the rubric states — "a submission flow that stores duplicates is a bug" — by refusing to store any SHA/DOI/title match, with the same decision (`verdict="duplicate"`, no storage). When the AE repo is mounted, swap the probe in without changing the storage rules. |
 
 Manual artifacts required: **none** — `data/test_pdfs/validate_task1.py` proves every storage assertion in-process.
+
+---
+
+## 0.1 Handoff Artefact (local schema)
+
+**Status: documented LOCAL schema.** The rubric names the Track 2 → Article Eater
+boundary as a handoff artefact — `ka_track2_setup.html:101-102`: *"The Finder
+writes a well-defined handoff artefact (`data/handoff/*.json`) that the Eater
+reads; the contract between them is the only thing Track 2 needs to honour."* —
+but it does **not** enumerate the artefact's fields (the field list is expected
+from the AE repo contract / KA Contextual Docs, absent on this checkout).
+
+This subsection therefore defines AF's **own documented local schema**. It is
+written by Task 3's `ae_handoff.py` (see `TASK3_CONTRACT.md §0.1`); Task 1's
+contribute page produces the upstream `articles` row that becomes a handoff
+candidate. Fields AF cannot compute are emitted as `null` with a `source_note`
+— never invented.
+
+| Field | Type | Source |
+|---|---|---|
+| `handoff_id` | string | minted at write time (`HANDOFF-<8 hex>`) |
+| `article_id` | string | the `articles.article_id` / `article_references.reference_id` |
+| `citation` | string \| null | submitted citation, else null |
+| `title` | string \| null | extracted/parsed title |
+| `doi` | string \| null | normalized DOI, else null |
+| `abstract` | string | required — a handoff is withheld if absent (gate) |
+| `article_type` | string \| null | classifier output |
+| `topic` | string \| null | best question/topic match |
+| `subfocus_area` | string \| null | sub-topic if assigned, else null |
+| `source_note` | string \| null | provenance (probe result, substitutions applied) |
+| `handoff_status` | string | `ready` \| `written` \| `blocked_missing_abstract` |
+| `blocked_reason` | string \| null | populated when `handoff_status` is a `blocked_*` value |
+| `created_at` | datetime | ISO-8601 UTC |
+| `updated_at` | datetime | ISO-8601 UTC |
+
+**Out of AF scope (AE-owned):** the downstream extraction lifecycle —
+`article_eater_running`, `article_eater_complete`, `article_eater_failed` — is
+the Eater's responsibility once it reads the artefact. `track2_hub.html:102`:
+*"AF's contract with AE is the job bundle and its metadata, not the extraction
+result."* AF tracks status only up to `written` (handed off).
 
 ---
 
