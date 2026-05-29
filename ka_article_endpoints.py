@@ -3001,6 +3001,15 @@ def _run_classifier_and_assess(title: str, abstract: str,
     #    user is told we can't decide yet (rubric: handle ambiguous cases).
     verdict = a.verdict
     reasons = list(a.reasons)
+    # Contract §6: an `accept` whose relevance confidence is below the 0.55 floor
+    # is demoted to `edge_case` — low-confidence accepts must not be stored as
+    # trusted `accept` rows downstream.
+    if verdict == "accept" and float(getattr(a, "confidence", 0.0) or 0.0) < 0.55:
+        verdict = "edge_case"
+        reasons = [
+            f"relevance confidence {round(float(a.confidence), 3)} < 0.55 — "
+            "demoted accept->edge_case per contract §6"
+        ] + reasons[:2]
     if next_action == "need_abstract_or_keywords" and not (abstract and len(abstract.strip()) > 50):
         verdict = "needs_more_info"
         reasons = [
