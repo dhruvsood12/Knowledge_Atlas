@@ -382,6 +382,20 @@ check("B7 · bad-file verdict=rejected_bad_file",
 check("B7 · bad file NOT inserted",
       db_count() == n_before)
 
+# --- Test 2C: DB status domain (Finding 6) ------------------------------
+# Contract clarifies that the DB `status` column for stored rows is ALWAYS
+# `staged_pending_review`; `needs_more_info` / `rejected_not_stored` are
+# response-only (no row). Assert the DB never holds the response-only values.
+_c = sqlite3.connect(os.environ["KA_WORKFLOW_DB"]); _c.row_factory = sqlite3.Row
+_statuses = sorted({r["status"] for r in _c.execute("SELECT status FROM articles").fetchall()})
+_c.close()
+check("2C · every stored row status == staged_pending_review",
+      _statuses in ([], ["staged_pending_review"]), f"distinct DB statuses={_statuses}")
+check("2C · needs_more_info never persisted to DB",
+      "needs_more_info" not in _statuses)
+check("2C · rejected_not_stored never persisted to DB",
+      "rejected_not_stored" not in _statuses)
+
 # --- Cleanup ---------------------------------------------------------------
 import shutil
 try: shutil.rmtree(TMP)
