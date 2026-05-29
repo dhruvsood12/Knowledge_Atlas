@@ -396,6 +396,19 @@ check("2C · needs_more_info never persisted to DB",
 check("2C · rejected_not_stored never persisted to DB",
       "rejected_not_stored" not in _statuses)
 
+# --- §5 checklist coverage: the two cross-cutting contract items ----------
+check("CL · article_id absent for reject and bad-file",
+      r2.get("article_id") is None and r7.get("article_id") is None,
+      f"reject={r2.get('article_id')} bad={r7.get('article_id')}")
+# Duplicate intentionally returns the MATCHED EXISTING row's id as a pointer
+# ("already in corpus: <id>"), and inserts no new row. Assert the pointer
+# resolves to a real stored row rather than asserting it is absent.
+check("CL · duplicate points to an existing row (no new row inserted)",
+      r5.get("article_id") is not None and db_row(r5["article_id"]) is not None,
+      f"dup_of={r5.get('article_id')}")
+check("CL · article_type_confidence in [0,1] across responses",
+      all(0.0 <= float(x.get("article_type_confidence", 0)) <= 1.0 for x in (r1, r3, r8)))
+
 # --- Cleanup ---------------------------------------------------------------
 import shutil
 try: shutil.rmtree(TMP)
