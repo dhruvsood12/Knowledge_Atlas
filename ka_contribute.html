@@ -491,6 +491,13 @@ function selectTopic(id) {
 }
 
 /* ── UPLOAD ── */
+// NON-AUTHORITATIVE client-side hint only. This is a tiny static sample, not
+// the corpus — it cannot catch a duplicate that isn't in this list. The
+// AUTHORITATIVE duplicate check runs server-side on submit
+// (_check_duplicate: SHA-256 + DOI + fuzzy-title over the full corpus) and its
+// verdict='duplicate' is what the result card displays. This array only powers
+// an optimistic pre-flight badge so the user gets instant feedback on the two
+// most-submitted papers; never treat a "ready" badge here as a guarantee.
 const EXISTING_ARTICLES = [
   {doi:'10.1037/0033-2909.132.6.833',title:'The restorative benefits of nature: toward an integrative framework',authors:'Kaplan, S.',year:1995},
   {doi:'10.5664/jcsm.3780',title:'Impact of windows and daylight exposure on overall health and sleep quality of office workers',authors:'Boubekri, M., et al.',year:2014}
