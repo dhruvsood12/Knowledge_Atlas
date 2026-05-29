@@ -315,20 +315,64 @@ check("B8 · response carries evidence_stage field",
       "evidence_stage" in r8 and isinstance(r8["evidence_stage"], str),
       f"got {r8.get('evidence_stage')}")
 
-# --- Test 9: needs_more_info path (citation-only, ambiguous) ------------
-# A short title with no abstract is exactly the case where
-# AdaptiveClassifierSubsystem may emit need_abstract_or_keywords.
-r9 = post(None, None, citation="A short ambiguous title.")
-items9 = r9["items"]
-check("B9 · ambiguous citation produces an item with a verdict",
-      len(items9) == 1 and items9[0].get("verdict"),
-      f"verdict={items9[0].get('verdict') if items9 else None}")
-# We don't hard-pin the verdict (data-dependent), but if it IS
-# needs_more_info, no DB row should have been written for it.
-if items9 and items9[0]["verdict"] == "needs_more_info":
-    check("B9 · needs_more_info → not stored",
-          items9[0].get("article_id") is None,
-          f"article_id={items9[0].get('article_id')}")
+# --- Test 9: needs_more_info path — DETERMINISTIC (no conditional skip) --
+# The classifier's verdict for an ad-hoc string is data-dependent, so the old
+# B9 wrapped its storage assertion in `if verdict=='needs_more_info'` and could
+# silently pass without firing. We now FORCE the trigger condition
+# (next_action='need_abstract_or_keywords' + no abstract) by monkeypatching the
+# article-type classifier, then assert unconditionally: verdict, no article_id,
+# and zero new DB rows.
+_orig_clf = ka_ep._classify_article_payload
+def _force_need_abstract(*a, **k):
+    return {
+        "article_type": "unknown", "canonical_article_type": "unknown",
+        "confidence": 0.0, "signals": [], "source": "test-forced",
+        "evidence_stage": "heuristic", "next_action": "need_abstract_or_keywords",
+    }
+try:
+    ka_ep._classify_article_payload = _force_need_abstract
+    n_before_b9 = db_count()
+    r9 = post(None, None, citation="No abstract is supplied with this citation line")
+    it9 = r9["items"][0]
+    check("B9 · forced need_abstract + no abstract → needs_more_info",
+          it9["verdict"] == "needs_more_info", f"got {it9['verdict']}")
+    check("B9 · needs_more_info → article_id is None",
+          it9.get("article_id") is None, f"article_id={it9.get('article_id')}")
+    check("B9 · needs_more_info → NO DB row inserted (unconditional)",
+          db_count() == n_before_b9, f"{n_before_b9}→{db_count()}")
+finally:
+    ka_ep._classify_article_payload = _orig_clf
+
+# --- Test 2A: contract §6 confidence floor (accept<0.55 → edge_case) ------
+# Drives the REAL endpoint function _run_classifier_and_assess with the
+# relevance filter monkeypatched to return a controlled-confidence `accept`.
+# An abstract is supplied so the needs_more_info gate cannot fire and mask it.
+from atlas_shared import relevance as _rel
+_orig_assess = _rel.QuestionArticleRelevanceFilter.assess
+class _StubAssessment:
+    def __init__(self, conf):
+        self.verdict = "accept"; self.confidence = conf
+        self.reasons = ["stub accept"]
+        self.environment_hits = []; self.outcome_hits = []
+_ABS = ("A sufficiently long abstract about nature, green space and directed "
+        "attention restoration, well over the fifty character length gate.")
+def _set_conf(conf):
+    _rel.QuestionArticleRelevanceFilter.assess = lambda self, c, cand: _StubAssessment(conf)
+try:
+    _set_conf(0.50)
+    d_lo = ka_ep._run_classifier_and_assess("Nature attention", _ABS)
+    check("2A · accept@0.50 demoted to edge_case (contract §6)",
+          d_lo["verdict"] == "edge_case", f"got {d_lo['verdict']}")
+    _set_conf(0.60)
+    d_hi = ka_ep._run_classifier_and_assess("Nature attention", _ABS)
+    check("2A · accept@0.60 stays accept",
+          d_hi["verdict"] == "accept", f"got {d_hi['verdict']}")
+    _set_conf(0.55)
+    d_bd = ka_ep._run_classifier_and_assess("Nature attention", _ABS)
+    check("2A · accept@0.55 boundary stays accept (>=0.55)",
+          d_bd["verdict"] == "accept", f"got {d_bd['verdict']}")
+finally:
+    _rel.QuestionArticleRelevanceFilter.assess = _orig_assess
 
 # --- Test 7: bad PDF (non-PDF magic bytes) → rejected_bad_file -----------
 n_before = db_count()
