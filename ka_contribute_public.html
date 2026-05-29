@@ -176,17 +176,18 @@
   <div class="card" style="background:#F9F5EE;border-color:#E0D8CC">
     <h2 style="font-size:1.05rem">What happens next</h2>
     <p style="font-size:.9rem">
-      Your submission goes into an intake queue. Within a few days, a reviewer
-      (DK or a trained student in the COGS 160 Article Finder track) confirms
-      the paper is on-topic, the PDF is readable, and no duplicate already exists.
-      If it passes, it enters the pipeline that extracts findings, maps them to
-      topics, and links them into the Web of Belief. You'll see it appear on the
-      relevant topic page within a week or two.
+      Right now, on submit, we do three things automatically: classify the
+      article type, check it against the corpus for duplicates, and score its
+      relevance to our research questions. On-topic submissions are stored as
+      <code>staged_pending_review</code> — held for a person to look at. We do
+      <b>not</b> run any automated extraction or publish to topic pages from this
+      page; staged items wait for manual review.
     </p>
     <p style="font-size:.9rem">
-      If we don't add it, we'll tell you why — usually because it's already
-      indexed, or because it's outside the architecture-and-cognition scope we
-      cover.
+      If your submission has no readable abstract we can't classify it
+      confidently, so we return <code>needs_more_info</code> and ask you to add
+      an abstract or keywords — nothing is stored until then. If it's off-topic
+      or already indexed, we tell you that instead and store nothing.
     </p>
   </div>
 
@@ -210,7 +211,9 @@
 <div class="modal-backdrop" id="__ka_thanks">
   <div class="modal" role="dialog" aria-modal="true">
     <h3>Thank you</h3>
-    <p>We got your suggestion. A reviewer will confirm it within the next few days.</p>
+    <p>We got your suggestion. It's been classified and checked for duplicates; if it's
+       on-topic it's now staged for a person to review. We don't auto-publish — staged
+       items are checked manually before anything downstream happens.</p>
     <p>If you left your email, we'll let you know the outcome either way.</p>
     <button type="button" class="btn-primary"
             onclick="document.getElementById('__ka_thanks').classList.remove('open')">Close</button>
@@ -283,11 +286,12 @@
     // hits / topic / reasons come from PDF text via the classifier) and would
     // otherwise be an XSS vector.
     const VERDICT_LABEL = {
-      accept:           "Accepted — queued for review",
-      edge_case:        "Edge case — queued for review",
+      accept:           "Accepted — staged for review",
+      edge_case:        "Edge case — staged for review",
       reject:           "Not stored — off-topic",
       rejected_bad_file:"Rejected — invalid PDF",
       duplicate:        "Duplicate — already in corpus",
+      needs_more_info:  "More info needed — add an abstract or keywords",
     };
     const el = (tag, opts) => {
       const e = document.createElement(tag);
@@ -330,6 +334,10 @@
         : "";
       labelLine(meta, "Best-match topic:", (item.topic || "—") + topicConf);
       if (item.question_id) labelLine(meta, "Question:", String(item.question_id));
+      // Surface the classifier's next_action + evidence stage so a submitter
+      // whose abstract was missing can see *why* (verdict needs_more_info).
+      if (item.next_action) labelLine(meta, "Next action:", String(item.next_action));
+      if (item.evidence_stage) labelLine(meta, "Evidence stage:", String(item.evidence_stage));
       card.appendChild(meta);
 
       const renderHits = (label, list) => {

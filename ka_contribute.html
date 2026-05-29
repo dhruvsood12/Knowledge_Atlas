@@ -298,10 +298,11 @@
     </div>
 
     <div class="callout callout-teal" style="margin-top:18px">
-      <strong>What happens next:</strong> Your submission enters our intake queue. Duplicates are
-      blocked immediately. Non-duplicates are reviewed nightly — accepted papers enter the extraction
-      pipeline where the Atlas identifies constructs, theories, mechanisms, and evidence relationships
-      automatically.
+      <strong>What happens next:</strong> On submit we classify the article type, check it
+      against the corpus for duplicates, and score topic relevance — all immediately. Duplicates
+      are blocked. On-topic non-duplicates are stored as <code>staged_pending_review</code> for
+      manual review. This page does not run any automated extraction; staged items wait for a
+      person before anything downstream happens.
     </div>
   </div>
 
@@ -647,8 +648,8 @@ async function submitContribution() {
       'Submission received — thank you!',
       `${s.total} item(s) processed: ${s.staged} staged for review, ` +
       `${s.duplicates} duplicate(s) caught, ${s.rejected} rejected. ` +
-      'Non-duplicates enter the review queue. Accepted papers are processed by the ' +
-      'Atlas extraction pipeline within 24–48 hours. ' +
+      'On-topic non-duplicates are stored as staged_pending_review. There is no automated ' +
+      'extraction from this page — staged items are checked by a person before anything downstream. ' +
       `<br><br><strong>Submission ID:</strong> ${result.submission_id}`
     );
   } catch (err) {
