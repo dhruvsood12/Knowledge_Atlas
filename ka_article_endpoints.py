@@ -2790,7 +2790,17 @@ def _load_constitutions() -> list:
         return _QUESTION_CONSTITUTIONS
     try:
         from atlas_shared.relevance import QuestionConstitution
-        spec_path = ATLAS_SHARED_DATA / "question_constitutions_starter.json"
+        # Prefer the repo-bundled copy / env override over the sibling-checkout
+        # path so the endpoint is portable on a clean checkout (no /private/tmp).
+        candidates = []
+        if os.environ.get("KA_CONSTITUTIONS"):
+            candidates.append(Path(os.environ["KA_CONSTITUTIONS"]))
+        candidates += [REPO_ROOT / "data" / "question_constitutions_starter.json",
+                       ATLAS_SHARED_DATA / "question_constitutions_starter.json"]
+        spec_path = next((c for c in candidates if c.exists()), None)
+        if spec_path is None:
+            _QUESTION_CONSTITUTIONS = []
+            return _QUESTION_CONSTITUTIONS
         data = json.loads(spec_path.read_text())
         _QUESTION_CONSTITUTIONS = [
             QuestionConstitution.from_panel_spec(q) for q in data.get("questions", [])
